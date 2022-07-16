@@ -89,6 +89,8 @@ void initSensors() {
 
   Serial.printf("-->[SENS] Selected CO2 Sensor: %d\n", selectedCO2Sensor);
 
+  // Default for TTGO T-DISPLAY: TX 12, RX 13
+
   if (selectedCO2Sensor == AUTO) {
     Serial.println("-->[SENS] Trying to init CO2 sensor: Auto (I2C)");
     sensors.detectI2COnly(true);
@@ -96,15 +98,15 @@ void initSensors() {
   } else if (selectedCO2Sensor == MHZ19) {
     Serial.println("-->[SENS] Trying to init CO2 sensor: MHZ19(A/B/C/D)");
     sensors.detectI2COnly(false);
-    sensors.init(MHZ19);
+    sensors.init(MHZ19, PIN_RX, PIN_TX);
   } else if (selectedCO2Sensor == CM1106) {
     Serial.println("-->[SENS] Trying to init CO2 sensor: CM1106");
     sensors.detectI2COnly(false);
-    sensors.init(CM1106);
+    sensors.init(CM1106, PIN_RX, PIN_TX);
   } else if (selectedCO2Sensor == SENSEAIRS8) {
     Serial.println("-->[SENS] Trying to init CO2 sensor: SENSEAIRS8");
     sensors.detectI2COnly(false);
-    sensors.init(SENSEAIRS8);
+    sensors.init(SENSEAIRS8, PIN_RX, PIN_TX);
   }
 
   if (!sensors.getMainDeviceSelected().isEmpty()) {
