@@ -11,94 +11,29 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 
+// IN CO2_Gadget.ino: String rootTopic = MQTT_TOPIC_BASE UNITHOSTNAME
+
 bool EspNowInititialized = false;
 // uint8_t peerESPNowAddress[] = ESPNOW_PEER_MAC_ADDRESS;
 
 // Peer info
 esp_now_peer_info_t peerInfo;
 
-// Commands to send/receive via ESP-NOW
-int cmdCO2GadgetNone = 0;
-int cmdCO2GadgetCalibration = 1;
-int cmdCO2GadgetDeepSleepPeriod = 2;
-int cmdCO2GadgetTest = 10;
 
-typedef enum : uint8_t {
-    MSG_JSON = 0,
-    MSG_RESERVED = 1,
-    MSG_CO2GADGET = 2,
-    MSG_PULSECOUNTER = 3,
-    WS_OTHER = 128
-} messagetype_t;
-
-// Data structure to send
-// Must match the receiver structure
-typedef struct struct_message_CO2_Gadget_t {
-    messagetype_t messageType = MSG_CO2GADGET;
-    int boardID;
-    float temp;
+  /*  float temp;
     float hum;
     uint16_t co2;
     float battery;
     int readingId;
     int command = cmdCO2GadgetNone;
     uint16_t parameter = 0;
-} struct_message_CO2_Gadget_t;
-
-// Create two struct_message data structures for esp-now communications
-struct_message_CO2_Gadget_t outgoingReadings;
-struct_message_CO2_Gadget_t incomingReadings;
+  */
 
 // Callback when data is sent
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
     Serial.printf("-->[ESPN] Last packet sent to %s with status: %s\n", macStr, (status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail"));
-}
-
-// Callback when data is received
-void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
-    memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
-
-    if (incomingReadings.boardID == boardIdESPNow) {
-        Serial.println("-->[ESPN] Received data for this board via ESP-NOW");
-        Serial.printf("-->[ESPN] Received bytes: %u (%u expected)\n", len, sizeof(incomingReadings));
-
-        if (len == sizeof(incomingReadings)) {
-            Serial.println("-->[ESPN] Measurements received");
-            memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
-            Serial.print("-->[ESPN] Bytes received:\t");
-            Serial.println(len);
-            Serial.print("-->[ESPN] CO2 Level:\t");
-            Serial.println(incomingReadings.co2);
-            Serial.print("-->[ESPN] Temperature:\t");
-            Serial.println(incomingReadings.temp);
-            Serial.print("-->[ESPN] Humidity:\t");
-            Serial.println(incomingReadings.hum);
-            Serial.print("-->[ESPN] Battery:\t");
-            Serial.println(incomingReadings.battery);
-            Serial.print("-->[ESPN] Command:\t");
-            Serial.println(incomingReadings.command);
-            Serial.print("-->[ESPN] Parameter:\t");
-            Serial.println(incomingReadings.parameter);
-        } else {
-            Serial.printf("-->[ESPN] ERROR: Incorrect size of received data. Received bytes: %u (%u expected)\n", len, sizeof(incomingReadings));
-        }
-
-        if ((incomingReadings.command == cmdCO2GadgetCalibration) && (incomingReadings.boardID == boardIdESPNow)) {
-            Serial.println("-->[ESPN] *****************************************************************************");
-            Serial.print("-->[ESPN] ***** ");
-            Serial.print(incomingReadings.command);
-            Serial.print("   Parameter:\t");
-            Serial.println(incomingReadings.parameter);
-            Serial.println("-->[ESPN] *****************************************************************************");
-            calibrationValue = incomingReadings.parameter;
-            pendingCalibration = true;
-        }
-    } else {
-        // Serial.printf("Received data via ESP-NOW\nAddressed to ESPNOW_BOARD_ID: %u\n", incomingReadings.id);
-        // Serial.printf("Received bytes: %u (%u expected)\n", len, sizeof(incomingReadings));
-    }
 }
 
 void printESPNowError(esp_err_t result) {
@@ -168,7 +103,7 @@ void initESPNow() {
     }
 
     // Register callback function that will be called when data is received
-    esp_now_register_recv_cb(OnDataRecv);
+    // esp_now_register_recv_cb(OnDataRecv);
 
     // Register callback function to get the status of Trasnmitted packet
     esp_now_register_send_cb(OnDataSent);
@@ -177,24 +112,42 @@ void initESPNow() {
     EspNowInititialized = true;
 }
 
+void send_topic_text(const char *topic, const char *text) {
+    char buf[200];
+    int n = snprintf(buf, sizeof(buf), "%s%s%s %s", "#R", rootTopic.c_str(), topic, text);
+
+    // Send message via ESP-NOW
+    esp_err_t result = esp_now_send(peerESPNowAddress, (uint8_t *)buf, n);
+    if (result == ESP_OK) {
+        Serial.println("-->[ESPN] Sent with success");
+    } else {
+        printESPNowError(result);
+    }
+}
+
 void publishESPNow() {
     if ((!activeESPNOW) || (!EspNowInititialized)) return;
     if (millis() - lastTimeESPNowPublished >= timeBetweenESPNowPublish * 1000) {
-        //Set values to send
-        outgoingReadings.boardID = boardIdESPNow;
-        outgoingReadings.co2 = co2;
-        outgoingReadings.temp = temp;
-        outgoingReadings.hum = hum;
-        outgoingReadings.battery = battery_voltage;
-        outgoingReadings.readingId++;
+        /*
+        volatile uint16_t co2 = 0;
+        float temp, tempFahrenheit, hum = 0;
+        float battery_voltage = 0;
+        */
 
-        // Send message via ESP-NOW
-        esp_err_t result = esp_now_send(peerESPNowAddress, (uint8_t *)&outgoingReadings, sizeof(outgoingReadings));
-        if (result == ESP_OK) {
-            Serial.println("-->[ESPN] Sent with success");
-        } else {
-            printESPNowError(result);
-        }
+        char text[120];
+
+        sprintf(text, "%d", co2);
+        send_topic_text("co2", text);
+
+        sprintf(text, "%.1f", temp);
+        send_topic_text("temp", text);
+
+        sprintf(text, "%.0f", hum);
+        send_topic_text("hum", text);
+
+        sprintf(text, "%.2f", battery_voltage);
+        send_topic_text("battery", text);
+
         lastTimeESPNowPublished = millis();
     }
 }
